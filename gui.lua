@@ -17,16 +17,33 @@ local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
+-- Marca a biblioteca como carregada globalmente
+if getgenv then
+    getgenv().CYBERLIB_LOADED = true
+    getgenv().CYBERLIB_VERSION = "1.1"
+end
+
 local IS_MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled
 
 local function GetGuiParent()
-    local ok, r = pcall(function() return gethui and gethui() or CoreGui end)
-    return ok and r or CoreGui
+    local ok, r = pcall(function() 
+        if gethui then
+            local hui = gethui()
+            if hui then return hui end
+        end
+        return CoreGui 
+    end)
+    if ok and r then return r end
+    return CoreGui
 end
 
 local function RandName()
-    local c, r = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", ""
-    for _ = 1, math.random(12, 18) do r = r .. c:sub(math.random(1, #c), math.random(1, #c)) end
+    local c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local r = ""
+    for _ = 1, math.random(12, 18) do 
+        local idx = math.random(1, #c)
+        r = r .. c:sub(idx, idx) 
+    end
     return r
 end
 
@@ -55,18 +72,24 @@ local function Create(c, p, ch)
     return i
 end
 
+local DummyTween = { Play = function() end, Cancel = function() end, Pause = function() end }
 local function Tween(i, p, d, easingStyle)
-    if not i or not p then return end
+    if not i or not p then return DummyTween end
     local style = easingStyle or Enum.EasingStyle.Quad
     local validProps = {}
     for k, v in pairs(p) do
-        if i[k] ~= nil then
+        local ok, val = pcall(function() return i[k] end)
+        if ok and val ~= nil then
             validProps[k] = v
         end
     end
     if next(validProps) then
-        return TweenService:Create(i, TweenInfo.new(d or 0.15, style, Enum.EasingDirection.Out), validProps)
+        local ok, tween = pcall(function()
+            return TweenService:Create(i, TweenInfo.new(d or 0.15, style, Enum.EasingDirection.Out), validProps)
+        end)
+        if ok and tween then return tween end
     end
+    return DummyTween
 end
 local function Corner(p, r) return Create("UICorner", { CornerRadius = UDim.new(0, r or 8), Parent = p }) end
 local function Stroke(p, c, t, tr) return Create("UIStroke", { Color = c or Theme.Border, Thickness = t or 1, Transparency = tr or 0, Parent = p }) end
@@ -144,11 +167,21 @@ function CyberLib:CreateWindow(cfg)
     end
     
     local function UpdTheme()
-        for _, o in ipairs(TObj) do pcall(function() o.I[o.P] = Theme[o.K] end) end
+        for _, o in ipairs(TObj) do 
+            pcall(function() 
+                if o.I and o.I.Parent and o.P and o.K and Theme[o.K] then
+                    o.I[o.P] = Theme[o.K] 
+                end
+            end) 
+        end
         for _, fn in ipairs(DynUpdaters) do pcall(fn) end
     end
     
-    local function Track(i, p, k) table.insert(TObj, { I = i, P = p, K = k }) end
+    local function Track(i, p, k) 
+        if i and p and k and Theme[k] then 
+            table.insert(TObj, { I = i, P = p, K = k }) 
+        end 
+    end
     local function AddDynamic(fn) table.insert(DynUpdaters, fn) end
     
     local function NextOrder() ElementOrder = ElementOrder + 1; return ElementOrder end
